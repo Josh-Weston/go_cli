@@ -18,12 +18,16 @@ func main() {
 	add := flag.Bool("add", false, "Add task to the ToDo list")
 	list := flag.Bool("list", false, "List all tasks")
 	complete := flag.Int("complete", 0, "Item to be completed")
+	delete := flag.Int("delete", 0, "Item to be deleted")
+	verbose := flag.Bool("verbose", false, "Verbose output")
+	hideComplete := flag.Bool("hide", true, "Hide completed items")
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(),
 			"%s tool. Developed for The Pragmatic Bookshelf\n", os.Args[0])
 		fmt.Fprintf(flag.CommandLine.Output(), "Copyright 2022\n")
 		fmt.Fprintln(flag.CommandLine.Output(), "Usage information: ")
 		flag.PrintDefaults()
+		fmt.Println("\n\nTo add new tasks, use the -add flag followed by your task name `-add <name of your task here>`")
 	}
 	flag.Parse()
 
@@ -59,14 +63,31 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		// Add the task
-		l.Add(t)
+
+		// Add each task
+		for _, task := range t {
+			l.Add(task)
+		}
 
 		// Save the new list
 		if err := l.Save(todoFileName); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case *delete > 0:
+		if err := l.Delete(*delete); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		// Save the new list
+		if err := l.Save(todoFileName); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	case *verbose:
+		fmt.Println(l.StringVerbose())
+	case *hideComplete:
+		fmt.Println(l.ShowInComplete())
 	default:
 		// Invalid flag provided
 		fmt.Fprintln(os.Stderr, "Invalid Option")
@@ -74,19 +95,29 @@ func main() {
 	}
 }
 
-func getTask(r io.Reader, args ...string) (string, error) {
+func getTask(r io.Reader, args ...string) ([]string, error) {
 	if len(args) > 0 {
-		return strings.Join(args, " "), nil
+		return []string{strings.Join(args, " ")}, nil
 	}
+
 	s := bufio.NewScanner(r)
-	s.Scan()
+	s.Split(bufio.ScanLines)
+
+	tasks := []string{}
+	for s.Scan() {
+		if len(s.Text()) == 0 {
+			return nil, fmt.Errorf("task cannot be blank")
+		}
+		tasks = append(tasks, s.Text())
+	}
 
 	if err := s.Err(); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if len(s.Text()) == 0 {
-		return "", fmt.Errorf("Task cannot be blank")
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("task cannot be blank")
 	}
-	return s.Text(), nil
+
+	return tasks, nil
 }

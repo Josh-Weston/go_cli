@@ -85,3 +85,30 @@ func (l *List) String() string {
 	}
 	return sb.String()
 }
+
+func (l *List) StringVerbose() string {
+	var sb strings.Builder
+	for k, t := range *l {
+		prefix := "  "
+		completedAt := ""
+		if t.Done {
+			prefix = "X "
+			completedAt = fmt.Sprintf(", CompletedAt: %s", t.CompletedAt)
+		}
+		sb.WriteString(fmt.Sprintf("%s%d: %s (Created At: %s%s)\n", prefix, k+1, t.Task, t.CreatedAt, completedAt))
+	}
+	return sb.String()
+}
+
+func (l *List) ShowInComplete() string {
+	var sb strings.Builder
+	for k, t := range *l {
+		prefix := "  "
+		if t.Done {
+			continue
+		}
+		// Adjust to be indexed starting at 1
+		sb.WriteString(fmt.Sprintf("%s%d: %s\n", prefix, k+1, t.Task))
+	}
+	return sb.String()
+}

@@ -12,10 +12,15 @@ import (
 
 var (
 	binName  = "todo"
-	fileName = ".todo.json"
+	fileName = "todo.json"
 )
 
 func TestMain(m *testing.M) {
+
+	if os.Getenv("TODO_FILENAME") != "" {
+		fileName = os.Getenv("TODO_FILENAME")
+	}
+
 	fmt.Println("Building tool...")
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
@@ -42,16 +47,19 @@ func TestTodoCLI(t *testing.T) {
 	}
 
 	cmdPath := filepath.Join(dir, binName)
+	fmt.Println(cmdPath)
 
 	t.Run("AddNewTaskFromArguments", func(t *testing.T) {
 		cmd := exec.Command(cmdPath, "-add", task1)
 		if err := cmd.Run(); err != nil {
+			fmt.Println(err)
 			t.Fatal(err)
 		}
 	})
+
 	task2 := "test task number 2"
 	t.Run("AddNewTaskFromSTDIN", func(t *testing.T) {
-		cmd := exec.Command(cmdPath, "-add", task2)
+		cmd := exec.Command(cmdPath, "-add")
 		cmdStdIn, err := cmd.StdinPipe()
 		if err != nil {
 			t.Fatal(err)
@@ -72,6 +80,56 @@ func TestTodoCLI(t *testing.T) {
 		expected := fmt.Sprintf("  1: %s\n  2: %s\n", task1, task2)
 		if expected != string(out) {
 			t.Errorf("Expected %q, got %q instead\n", expected, string(out))
+		}
+	})
+
+	t.Run("DeleteTaskAndList", func(t *testing.T) {
+		cmd := exec.Command(cmdPath, "-delete", "1")
+		_, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cmd = exec.Command(cmdPath, "-list")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := fmt.Sprintf("  1: %s\n", task2)
+		if expected != string(out) {
+			t.Errorf("Expected %q, got %q instead\n", expected, string(out))
+		}
+	})
+
+	t.Run("Complete", func(t *testing.T) {
+		cmd := exec.Command(cmdPath, "-complete", "1")
+		_, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cmd = exec.Command(cmdPath, "-list")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := fmt.Sprintf("X 1: %s\n", task2)
+		if expected != string(out) {
+			t.Errorf("Expected %q, got %q instead\n", expected, string(out))
+		}
+	})
+
+	t.Run("AddMultipleTasksFromSTDIN", func(t *testing.T) {
+		cmd := exec.Command(cmdPath, "-add")
+		cmdStdIn, err := cmd.StdinPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		tasks := "test task number 3\ntest task number 4\ntest task number 5"
+		io.WriteString(cmdStdIn, tasks)
+		cmdStdIn.Close()
+		if err := cmd.Run(); err != nil {
+			t.Fatal(err)
 		}
 	})
 }
